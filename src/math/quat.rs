@@ -1,15 +1,15 @@
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct Quat {
-	a: f32,
-	b: f32,
-	c: f32,
-	d: f32,
+	pub a: f32,
+	pub b: f32,
+	pub c: f32,
+	pub d: f32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct DQuat {
-	a: f64,
-	b: f64,
-	c: f64,
-	d: f64,
+	pub a: f64,
+	pub b: f64,
+	pub c: f64,
+	pub d: f64,
 }
