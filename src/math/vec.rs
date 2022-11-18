@@ -5,15 +5,15 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAss
 use paste::paste;
 
 macro_rules! size_match {
-    ($base:expr, repeat $rep:expr, take 2) => {
-        $base($rep, $rep)
-    };
-    ($base:expr, repeat $rep:expr, take 3) => {
-        $base($rep, $rep, $rep)
-    };
-    ($base:expr, repeat $rep:expr, take 4) => {
-        $base($rep, $rep, $rep, $rep)
-    };
+	($base:expr, repeat $rep:expr, take 2) => {
+		$base($rep, $rep)
+	};
+	($base:expr, repeat $rep:expr, take 3) => {
+		$base($rep, $rep, $rep)
+	};
+	($base:expr, repeat $rep:expr, take 4) => {
+		$base($rep, $rep, $rep, $rep)
+	};
 }
 
 macro_rules! impl_vec {

@@ -2,6 +2,6 @@
 pub mod algorithms;
 pub mod math;
 
-mod prelude {
-	pub use crate::math::*;
+pub mod prelude {
+	pub use crate::math::{quat::*, vec::*};
 }
