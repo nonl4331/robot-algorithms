@@ -3,5 +3,5 @@ pub mod algorithms;
 pub mod math;
 
 pub mod prelude {
-	pub use crate::math::{quat::*, vec::*};
+	pub use crate::math::{quat::*, vec::*, FloatMath};
 }

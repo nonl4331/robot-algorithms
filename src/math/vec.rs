@@ -17,19 +17,19 @@ macro_rules! size_match {
 }
 
 macro_rules! impl_vec {
-	($name:ident, $type:ty, $num:tt, $($field:ident),*) => {
+	($name:ident, $num:tt, $($field:ident),*) => {
 			/// A Vector type
 			#[derive(Copy, Clone, Debug, PartialEq, Default)]
 			pub struct $name {
 				$(
-					pub $field: $type,
+					pub $field: f64,
 				)*
 			}
 
 			impl $name {
 				/// Creates a new Vector.
 				#[inline]
-				pub const fn new($( $field: $type, )*) -> Self {
+				pub const fn new($( $field: f64, )*) -> Self {
 					Self { $($field,)* }
 				}
 				/// Creates a new Vector with all components as zero.
@@ -44,19 +44,19 @@ macro_rules! impl_vec {
 				}
 				/// Calculates a dot product with another vector.
 				#[inline]
-				pub fn dot(&self, other: Self) -> $type {
+				pub fn dot(&self, other: Self) -> f64 {
 					$(
 						self.$field * other.$field +
 					)* 0.0 // match off last addition
 				}
 				/// Returns the square of magnitude of the vector.
 				#[inline]
-				pub fn mag_sq(&self) -> $type {
+				pub fn mag_sq(&self) -> f64 {
 					self.dot(*self)
 				}
 				/// Returns the magnitude of the vector.
 				#[inline]
-				pub fn mag(&self) -> $type {
+				pub fn mag(&self) -> f64 {
 					self.dot(*self).sqrt()
 				}
 				/// Normalises the vector in place.
@@ -80,13 +80,13 @@ macro_rules! impl_vec {
 				}
 				/// Returns the minimum component of the vector.
 				#[inline]
-				pub fn component_min(self) -> $type {
-					[ $( self.$field, )* ].into_iter().reduce(<$type>::min).unwrap()
+				pub fn component_min(self) -> f64 {
+					[ $( self.$field, )* ].into_iter().reduce(<f64>::min).unwrap()
 				}
 				/// Returns the maximum component of the vector.
 				#[inline]
-				pub fn component_max(self) -> $type {
-					[ $( self.$field, )* ].into_iter().reduce(<$type>::max).unwrap()
+				pub fn component_max(self) -> f64 {
+					[ $( self.$field, )* ].into_iter().reduce(<f64>::max).unwrap()
 				}
 				/// Returns a new vector with the minimum component value between the two
 				/// vectors.
@@ -110,16 +110,16 @@ macro_rules! impl_vec {
 				}
 			}
 
-			impl_vec!($name, $type, $($field,)* |impl| Add +);
-			impl_vec!($name, $type, $($field,)* |impl| Sub -);
-			impl_vec!($name, $type, $($field,)* |impl| Mul *);
-			impl_vec!($name, $type, $($field,)* |impl| Div /);
-			impl_vec!($name, $type, $($field,)* |impl shorthand| Mul *);
-			impl_vec!($name, $type, $($field,)* |impl shorthand| Div /);
+			impl_vec!($name, $($field,)* |impl| Add +);
+			impl_vec!($name, $($field,)* |impl| Sub -);
+			impl_vec!($name, $($field,)* |impl| Mul *);
+			impl_vec!($name, $($field,)* |impl| Div /);
+			impl_vec!($name, $($field,)* |impl shorthand| Mul *);
+			impl_vec!($name, $($field,)* |impl shorthand| Div /);
 
 			impl_vec!($name, display: $num, $($field,)*);
 	};
-	($name:ident, $type:ty, $($field:ident),*, |impl| $op:ident $op_tok:tt) => {
+	($name:ident, $($field:ident),*, |impl| $op:ident $op_tok:tt) => {
 		paste! {
 			impl $op for $name {
 				type Output = Self;
@@ -142,12 +142,12 @@ macro_rules! impl_vec {
 			}
 		}
 	};
-	($name:ident, $type:ty, $($field:ident),*, |impl shorthand| $op:ident $op_tok:tt) => {
+	($name:ident, $($field:ident),*, |impl shorthand| $op:ident $op_tok:tt) => {
 		paste !{
-			impl $op<$type> for $name {
+			impl $op<f64> for $name {
 				type Output = Self;
 				#[inline]
-				fn [<$op:lower>](self, rhs: $type) -> Self {
+				fn [<$op:lower>](self, rhs: f64) -> Self {
 					Self::new(
 						$(
 							self.$field $op_tok rhs,
@@ -155,9 +155,9 @@ macro_rules! impl_vec {
 					)
 				}
 			}
-			impl [<$op Assign>]<$type> for $name {
+			impl [<$op Assign>]<f64> for $name {
 				#[inline]
-				fn [<$op:lower _assign>](&mut self, rhs: $type) {
+				fn [<$op:lower _assign>](&mut self, rhs: f64) {
 					$(
 						self.$field = self.$field $op_tok rhs;
 					)*
@@ -189,9 +189,6 @@ macro_rules! impl_vec {
 	};
 }
 
-impl_vec!(DVec2, f64, 2, x, y);
-impl_vec!(Vec2, f32, 2, x, y);
-impl_vec!(DVec3, f64, 3, x, y, z);
-impl_vec!(Vec3, f32, 3, x, y, z);
-impl_vec!(DVec4, f64, 4, x, y, z, w);
-impl_vec!(Vec4, f32, 4, x, y, z, w);
+impl_vec!(Vec2, 2, x, y);
+impl_vec!(Vec3, 3, x, y, z);
+impl_vec!(Vec4, 4, x, y, z, w);
