@@ -118,6 +118,7 @@ macro_rules! impl_vec {
 			impl_vec!($name, $($field,)* |impl shorthand| Div /);
 
 			impl_vec!($name, display: $num, $($field,)*);
+			impl_vec!($name, into_tuple: $num, $($field,)*);
 	};
 	($name:ident, $($field:ident),*, |impl| $op:ident $op_tok:tt) => {
 		paste! {
@@ -184,6 +185,27 @@ macro_rules! impl_vec {
 		impl core::fmt::Display for $name {
 			fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 				write!(f, "({}, {}, {}, {})", $(self.$field,)* )
+			}
+		}
+	};
+	($name:ident, into_tuple: 2, $($field:ident),*,) => {
+		impl core::convert::From<$name> for (f64, f64) {
+			fn from(v: $name) -> Self {
+				($(v.$field,)*)
+			}
+		}
+	};
+	($name:ident, into_tuple: 3, $($field:ident),*,) => {
+		impl core::convert::From<$name> for (f64, f64, f64) {
+			fn from(v: $name) -> Self {
+				($(v.$field,)*)
+			}
+		}
+	};
+	($name:ident, into_tuple: 4, $($field:ident),*,) => {
+		impl core::convert::From<$name> for (f64, f64, f64, f64) {
+			fn from(v: $name) -> Self {
+				($(v.$field,)*)
 			}
 		}
 	};
