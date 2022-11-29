@@ -25,70 +25,66 @@ mod cmath {
 }
 
 pub trait FloatMath {
-	fn sqrt(&self) -> Self;
-	fn abs(&self) -> Self;
-	fn sin(&self) -> Self;
-	fn cos(&self) -> Self;
-	fn tan(&self) -> Self;
-	fn asin(&self) -> Self;
-	fn acos(&self) -> Self;
-	fn atan(&self) -> Self;
+	fn sqrt(self) -> Self;
+	fn abs(self) -> Self;
+	fn sin(self) -> Self;
+	fn cos(self) -> Self;
+	fn tan(self) -> Self;
+	fn asin(self) -> Self;
+	fn acos(self) -> Self;
+	fn atan(self) -> Self;
 }
 
 impl FloatMath for f64 {
-	fn sqrt(&self) -> Self {
-		unsafe { cmath::sqrt(*self) }
+	fn sqrt(self) -> Self {
+		unsafe { cmath::sqrt(self) }
 	}
-
-	fn abs(&self) -> Self {
-		unsafe { cmath::abs(*self) }
+	fn abs(self) -> Self {
+		unsafe { cmath::abs(self) }
 	}
-
-	fn sin(&self) -> Self {
-		unsafe { cmath::sin(*self) }
+	fn sin(self) -> Self {
+		unsafe { cmath::sin(self) }
 	}
-	fn cos(&self) -> Self {
-		unsafe { cmath::cos(*self) }
+	fn cos(self) -> Self {
+		unsafe { cmath::cos(self) }
 	}
-	fn tan(&self) -> Self {
-		unsafe { cmath::tan(*self) }
+	fn tan(self) -> Self {
+		unsafe { cmath::tan(self) }
 	}
-	fn asin(&self) -> Self {
-		unsafe { cmath::asin(*self) }
+	fn asin(self) -> Self {
+		unsafe { cmath::asin(self) }
 	}
-	fn acos(&self) -> Self {
-		unsafe { cmath::acos(*self) }
+	fn acos(self) -> Self {
+		unsafe { cmath::acos(self) }
 	}
-	fn atan(&self) -> Self {
-		unsafe { cmath::atan(*self) }
+	fn atan(self) -> Self {
+		unsafe { cmath::atan(self) }
 	}
 }
 
 impl FloatMath for f32 {
-	fn sqrt(&self) -> Self {
-		unsafe { cmath::sqrtf(*self) }
+	fn sqrt(self) -> Self {
+		unsafe { cmath::sqrtf(self) }
 	}
-
-	fn abs(&self) -> Self {
-		unsafe { cmath::absf(*self) }
+	fn abs(self) -> Self {
+		unsafe { cmath::absf(self) }
 	}
-
-	fn sin(&self) -> Self {
-		unsafe { cmath::sinf(*self) }
+	fn sin(self) -> Self {
+		unsafe { cmath::sinf(self) }
 	}
-	fn cos(&self) -> Self {
-		unsafe { cmath::cosf(*self) }
+	fn cos(self) -> Self {
+		unsafe { cmath::cosf(self) }
 	}
-	fn tan(&self) -> Self {
-		unsafe { cmath::tanf(*self) }
+	fn tan(self) -> Self {
+		unsafe { cmath::tanf(self) }
 	}
-	fn asin(&self) -> Self {
-		unsafe { cmath::asinf(*self) }
+	fn asin(self) -> Self {
+		unsafe { cmath::asinf(self) }
 	}
-	fn acos(&self) -> Self {
-		unsafe { cmath::acosf(*self) }
+	fn acos(self) -> Self {
+		unsafe { cmath::acosf(self) }
 	}
-	fn atan(&self) -> Self {
-		unsafe { cmath::atanf(*self) }
+	fn atan(self) -> Self {
+		unsafe { cmath::atanf(self) }
 	}
 }
