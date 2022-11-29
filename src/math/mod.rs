@@ -21,6 +21,8 @@ mod cmath {
 		pub fn acosf(x: f32) -> f32;
 		pub fn atan(x: f64) -> f64;
 		pub fn atanf(x: f32) -> f32;
+		pub fn atan2(y: f64, x: f64) -> f64;
+		pub fn atan2f(y: f32, x: f32) -> f32;
 	}
 }
 
@@ -33,6 +35,7 @@ pub trait FloatMath {
 	fn asin(self) -> Self;
 	fn acos(self) -> Self;
 	fn atan(self) -> Self;
+	fn atan2(self, x: Self) -> Self;
 }
 
 impl FloatMath for f64 {
@@ -60,6 +63,9 @@ impl FloatMath for f64 {
 	fn atan(self) -> Self {
 		unsafe { cmath::atan(self) }
 	}
+	fn atan2(self, x: Self) -> Self {
+		unsafe { cmath::atan2(self, x) }
+	}
 }
 
 impl FloatMath for f32 {
@@ -86,5 +92,8 @@ impl FloatMath for f32 {
 	}
 	fn atan(self) -> Self {
 		unsafe { cmath::atanf(self) }
+	}
+	fn atan2(self, x: Self) -> Self {
+		unsafe { cmath::atan2f(self, x) }
 	}
 }

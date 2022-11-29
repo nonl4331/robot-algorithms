@@ -1,7 +1,8 @@
 use crate::common::*;
 use crate::graphing::*;
-use robot_algorithms::algorithms::path_planning::QuinticPolynomial;
-use robot_algorithms::math::vec::Vec2;
+use core::f64::consts::PI;
+use robot_algorithms::algorithms::path_planning::{DubinsPath, QuinticPolynomial};
+use robot_algorithms::prelude::*;
 
 mod common;
 
@@ -46,4 +47,18 @@ fn graph_animated() {
 fn graph_static() {
 	let graph = get_test_graph();
 	draw_graph(0.0, graph.max_t(), &graph);
+}
+
+#[test]
+fn graph_static_dubin() {
+	let path = DubinsPath::new(
+		Vec2::new(1.0, 1.0),
+		PI / 4.0,
+		Vec2::new(-3.0, -3.0),
+		-PI / 4.0,
+		1.0,
+	)
+	.unwrap();
+
+	draw_graph_dubins(&path);
 }

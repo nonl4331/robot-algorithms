@@ -1,8 +1,8 @@
 use image::codecs::gif::*;
 use image::*;
 use plotters::backend::BitMapBackend;
-use robot_algorithms::algorithms::path_planning::QuinticPolynomial;
-use robot_algorithms::math::vec::Vec2;
+use robot_algorithms::algorithms::path_planning::{DubinsPath, QuinticPolynomial};
+use robot_algorithms::prelude::*;
 
 use plotters::prelude::*;
 pub fn draw_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
@@ -37,7 +37,7 @@ pub fn draw_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
 			.right_y_label_area_size(50.0 * scaling_factor.y)
 			.margin(10.0 * mean_scaling_factor)
 			.caption(
-				"Robot Path",
+				"Quintic Polynomial Path",
 				("sans-serif", 40.0 * mean_scaling_factor).into_font(),
 			)
 			.build_cartesian_2d(
@@ -139,7 +139,7 @@ pub fn animate_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
                     .margin(10.0 * mean_scaling_factor)
                     .caption(
                         format!(
-                            "Robot Path | t = {max_t:.2}s, v = ({:.2}, {:.2})m/s, a = ({:.2}, {:.2})m/s^2, j = ({:.2}, {:.2})m/s^3",
+                            "Quintic Polynomial Path | t = {max_t:.2}s, v = ({:.2}, {:.2})m/s, a = ({:.2}, {:.2})m/s^2, j = ({:.2}, {:.2})m/s^3",
                             polynomial.velocity(max_t).x,
                             polynomial.velocity(max_t).y,
                             polynomial.acceleration(max_t).x,
@@ -214,4 +214,97 @@ pub fn animate_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
 			))
 			.unwrap();
 	}
+}
+
+pub fn draw_graph_dubins(dubins: &DubinsPath) {
+	const DIM: (u32, u32) = (4320, 4320);
+	let scaling_factor = (DIM.0 as f64 / 1920.0, DIM.1 as f64 / 1080.0);
+	let mean_scaling_factor = (scaling_factor.0 + scaling_factor.1) * 0.5;
+	let mut buffer = vec![0u8; (DIM.0 * DIM.1) as usize * 3];
+	{
+		let root = BitMapBackend::with_buffer(&mut buffer, DIM).into_drawing_area();
+		root.fill(&WHITE).unwrap();
+
+		let values: Vec<(f64, f64)> = dubins
+			.get_points(0.1)
+			.into_iter()
+			.map(|v| (v.0.x, v.0.y))
+			.collect();
+
+		let max_val = (
+			values.iter().max_by(|a, b| a.0.total_cmp(&b.0)).unwrap().0,
+			values.iter().max_by(|a, b| a.1.total_cmp(&b.1)).unwrap().1,
+		);
+		let min_val = (
+			values.iter().min_by(|a, b| a.0.total_cmp(&b.0)).unwrap().0,
+			values.iter().min_by(|a, b| a.1.total_cmp(&b.1)).unwrap().1,
+		);
+
+		let max_abs = max_val
+			.0
+			.max(min_val.0.abs())
+			.max(max_val.1)
+			.max(min_val.1.abs());
+
+		let max_val = (max_abs, max_abs);
+		let min_val = (-max_abs, -max_abs);
+
+		let range = (max_val.0 - min_val.0, max_val.1 - min_val.1);
+
+		let mut chart = ChartBuilder::on(&root)
+			.x_label_area_size(60.0 * scaling_factor.0)
+			.y_label_area_size(50.0 * scaling_factor.1)
+			.right_y_label_area_size(50.0 * scaling_factor.1)
+			.margin(10.0 * mean_scaling_factor)
+			.caption(
+				"Dubins Path",
+				("sans-serif", 40.0 * mean_scaling_factor).into_font(),
+			)
+			.build_cartesian_2d(
+				(min_val.0 - 0.05 * range.0)..(max_val.0 + 0.05 * range.0),
+				(min_val.1 - 0.05 * range.1)..(max_val.1 + 0.05 * range.1),
+			)
+			.unwrap();
+
+		chart
+			.configure_mesh()
+			.label_style(("sans-serif", 20.0 * mean_scaling_factor, &BLACK).into_text_style(&root))
+			.axis_style(ShapeStyle {
+				color: BLACK.into(),
+				filled: true,
+				stroke_width: (1.0 * mean_scaling_factor).max(2.0) as u32,
+			})
+			.draw()
+			.unwrap();
+
+		chart
+			.draw_series(PointSeries::of_element(
+				vec![values[0], *values.last().unwrap()],
+				5.0 * mean_scaling_factor,
+				RED,
+				&|c, s, st| {
+					EmptyElement::at(c)
+						+ Circle::new((0, 0), s, st.filled())
+						+ Text::new(
+							format!("({:.2}, {:.2})", c.0, c.1),
+							(10, 0),
+							("sans-serif", 15.0 * mean_scaling_factor).into_font(),
+						)
+				},
+			))
+			.unwrap();
+
+		chart
+			.draw_series(LineSeries::new(
+				values,
+				RED.stroke_width((2.0 * mean_scaling_factor).max(2.0) as u32),
+			))
+			.unwrap();
+	}
+
+	let img: image::DynamicImage = RgbImage::from_raw(DIM.0, DIM.1, buffer).unwrap().into();
+
+	let img = img.thumbnail(2160, 2160);
+
+	img.save("out.png").unwrap();
 }
