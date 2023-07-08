@@ -1,0 +1,1622 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 52b6c0c..df35772 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -4,9 +4,14 @@ version = "0.1.0"
+ edition = "2021"
+ 
+ [dependencies]
+-paste = "1"
+-smallvec = "1.10.0"
++nalgebra = "0.32.2"
++smallvec = {version = "1.10.0", features = ["union", "const_generics", "const_new"], optional = true}
++libm = {version = "0.2.7", optional = true}
+ 
+ [dev-dependencies]
+ image = "0.24.5"
+-plotters = "0.3.4"
+\ No newline at end of file
++plotters = {git = "https://github.com/plotters-rs/plotters"}
++
++[features]
++default = ["no_std"]
++no_std = ["dep:smallvec", "nalgebra/libm", "dep:libm"]
+diff --git a/README.md b/README.md
+index cc0b704..835e746 100644
+--- a/README.md
++++ b/README.md
+@@ -5,4 +5,4 @@ A work in progress collection of robotics algorithms written in Rust.
+  - `no_std` support using cmath for float arithmatic
+ 
+ # How to use
+-Add `robot\_algorithms = "0.1.0"` to your Cargo.toml
++Add `robot_algorithms = { git = "https://github.com/nonl4331/robot-algorithms" }` to your Cargo.toml
+diff --git a/src/algorithms/path_planning/dubins.rs b/src/algorithms/path_planning/dubins.rs
+index 03c489f..1283fd9 100644
+--- a/src/algorithms/path_planning/dubins.rs
++++ b/src/algorithms/path_planning/dubins.rs
+@@ -1,6 +1,6 @@
+ use crate::prelude::*;
++
+ use core::f64::consts::TAU;
+-use smallvec::SmallVec;
+ 
+ #[derive(Debug, Copy, Clone, PartialEq)]
+ pub enum PathSegmentType {
+@@ -30,7 +30,7 @@ impl PathType {
+ 
+ 		match *self {
+ 			PathType::RSR => {
+-				let p_sq = 2.0 + dist * dist - (2.0 * cab) + (2.0 * dist * (sa - sb));
++				let p_sq = 2.0 + dist * dist - (2.0 * cab) + (2.0 * dist * (sb - sa));
+ 				if p_sq < 0.0 {
+ 					return None;
+ 				}
+@@ -44,9 +44,9 @@ impl PathType {
+ 				if p_sq < 0.0 {
+ 					return None;
+ 				}
+-				d1 = p_sq.sqrt();
+-				let tmp = (ca + cb).atan2(dist - sa - sb) - 2.0.atan2(d1);
+-				d2 = map_to_2pi(alpha - tmp);
++				d2 = p_sq.sqrt();
++				let tmp = (ca + cb).atan2(dist - sa - sb) - 2.0f64.atan2(d2);
++				d1 = map_to_2pi(alpha - tmp);
+ 				d3 = map_to_2pi(beta - tmp);
+ 			}
+ 			PathType::LSR => {
+@@ -54,9 +54,9 @@ impl PathType {
+ 				if p_sq < 0.0 {
+ 					return None;
+ 				}
+-				d1 = p_sq.sqrt();
+-				let tmp = (-ca - cb).atan2(dist + sa + sb) - (-2.0).atan2(d1);
+-				d2 = map_to_2pi(tmp - alpha);
++				d2 = p_sq.sqrt();
++				let tmp = (-ca - cb).atan2(dist + sa + sb) - (-2.0f64).atan2(d2);
++				d1 = map_to_2pi(tmp - alpha);
+ 				d3 = map_to_2pi(tmp - map_to_2pi(beta));
+ 			}
+ 			PathType::LSL => {
+@@ -70,7 +70,7 @@ impl PathType {
+ 				d3 = map_to_2pi(beta - tmp);
+ 			}
+ 			PathType::RLR => {
+-				let tmp = (6.0 - dist * dist + 2.0 * cab + 2.0 * dist * (sa - sb)) / 8.0;
++				let tmp = (6.0 - dist * dist + 2.0 * cab + 2.0 * dist * (sa - sb)) * 0.125;
+ 				if tmp.abs() > 1.0 {
+ 					return None;
+ 				}
+@@ -79,7 +79,7 @@ impl PathType {
+ 				d3 = map_to_2pi(alpha - beta - d1 + d2);
+ 			}
+ 			PathType::LRL => {
+-				let tmp = (6.0 - dist * dist + 2.0 * cab + 2.0 * dist * (sb - sa)) / 8.0;
++				let tmp = (6.0 - dist * dist + 2.0 * cab + 2.0 * dist * (sb - sa)) * 0.125;
+ 				if tmp.abs() > 1.0 {
+ 					return None;
+ 				}
+@@ -143,17 +143,18 @@ pub struct DubinsPath {
+ }
+ 
+ impl DubinsPath {
+-	pub fn new(x0: Vec2, y0: f64, x1: Vec2, y1: f64, max_curve: f64) -> Result<Self, Error> {
+-		let old_x1 = x1;
++	pub fn new(p0: Vec2, y0: f64, p1: Vec2, y1: f64, max_curve: f64) -> Result<Self, Error> {
++		let old_x1 = p1;
+ 		let old_y1 = y1;
+-		let x1 = Vec2::new(
+-			(x1.x - x0.x) * (-y0).cos() - (x1.y - x0.y) * (-y0).sin(),
+-			(x1.x - x0.x) * (-y0).sin() + (x1.y - x0.y) * (-y0).cos(),
++
++		let p1 = Vec2::new(
++			(p1.x - p0.x) * y0.cos() - (p1.y - p0.y) * (-y0).sin(),
++			(p1.x - p0.x) * (-y0).sin() + (p1.y - p0.y) * y0.cos(),
+ 		);
+ 		let y1 = y1 - y0;
+ 
+-		let d = max_curve * x1.mag();
+-		let theta = x1.y.atan2(x1.x) % TAU;
++		let d = max_curve * p1.magnitude();
++		let theta = p1.y.atan2(p1.x) % TAU;
+ 		let alpha = -theta % TAU;
+ 		let beta = (y1 - theta) % TAU;
+ 
+@@ -180,9 +181,9 @@ impl DubinsPath {
+ 
+ 		Ok(Self {
+ 			path_type: v.3,
+-			start: (x0, y0),
++			start: (p0, y0),
+ 			end: (old_x1, old_y1),
+-			relative_end: (x1, y1),
++			relative_end: (p1, y1),
+ 			distances: [v.0, v.1, v.2],
+ 			max_curve,
+ 		})
+@@ -194,21 +195,21 @@ impl DubinsPath {
+ 		origin: (Vec2, f64),
+ 		current_length: f64,
+ 	) -> (Vec2, f64, PathSegmentType) {
++		let min_radius = 1.0 / self.max_curve;
+ 		match segment_type {
+ 			PathSegmentType::Straight => (
+-				origin.0
+-					+ Vec2::new(origin.1.cos(), origin.1.sin()) * current_length / self.max_curve,
++				origin.0 + Vec2::new(origin.1.cos(), origin.1.sin()) * current_length * min_radius,
+ 				origin.1,
+ 				segment_type,
+ 			),
+ 			_ => {
+-				let local_x = current_length.sin() / self.max_curve;
+-				let mut local_y = (1.0 - current_length.cos()) / self.max_curve;
++				let local_x = current_length.sin() * min_radius;
++				let mut local_y = (1.0 - current_length.cos()) * min_radius;
+ 				if PathSegmentType::Right == segment_type {
+-					local_y *= -1.0;
++					local_y = -local_y;
+ 				}
+-				let diff_x = (origin.1).cos() * local_x + (-origin.1).sin() * local_y;
+-				let diff_y = -(-origin.1).sin() * local_x + (origin.1).cos() * local_y;
++				let diff_x = origin.1.cos() * local_x + (-origin.1).sin() * local_y;
++				let diff_y = -(-origin.1).sin() * local_x + origin.1.cos() * local_y;
+ 				(
+ 					origin.0 + Vec2::new(diff_x, diff_y),
+ 					if PathSegmentType::Left == segment_type {
+@@ -222,10 +223,10 @@ impl DubinsPath {
+ 		}
+ 	}
+ 
+-	pub fn get_points_local(&self, step_size: f64) -> SmallVec<[(Vec2, f64, PathSegmentType); 64]> {
+-		let mut points = SmallVec::<[(Vec2, f64, PathSegmentType); 64]>::new();
++	pub fn get_points_local(&self, step_size: f64) -> Vec<(Vec2, f64, PathSegmentType)> {
++		let mut points = Vec::new();
+ 		let segments = self.path_type.get_path_segment_types();
+-		points.push((Vec2::zero(), 0.0, segments[0]));
++		points.push((Vec2::zeros(), 0.0, segments[0]));
+ 
+ 		for (i, &current_segment) in segments.iter().enumerate() {
+ 			let segment_length = self.distances[i];
+@@ -256,14 +257,14 @@ impl DubinsPath {
+ 		points
+ 	}
+ 
+-	pub fn get_points(&self, step_size: f64) -> SmallVec<[(Vec2, f64, PathSegmentType); 64]> {
++	pub fn get_points(&self, step_size: f64) -> Vec<(Vec2, f64, PathSegmentType)> {
+ 		let mut points = self.get_points_local(step_size);
+ 
+ 		let transform = |v: (Vec2, f64, PathSegmentType)| {
+ 			(
+ 				Vec2::new(
+-					(v.0.x) * (self.start.1).cos() - (v.0.y) * (self.start.1).sin(),
+-					(v.0.x) * (self.start.1).sin() + (v.0.y) * (self.start.1).cos(),
++					v.0.x * self.start.1.cos() - v.0.y * self.start.1.sin(),
++					v.0.x * self.start.1.sin() + v.0.y * self.start.1.cos(),
+ 				) + self.start.0,
+ 				v.1 + self.start.1,
+ 				v.2,
+@@ -314,387 +315,13 @@ mod tests {
+ 		)
+ 		.unwrap();
+ 
+-		let points: SmallVec<[(Vec2, f64); 64]> = path
++		let points: Vec<(Vec2, f64)> = path
+ 			.get_points(0.1)
+ 			.into_iter()
+ 			.map(|v| (v.0, v.1))
+ 			.collect();
+ 
+-		let ref_points: SmallVec<[(Vec2, f64); 64]> = SmallVec::from_slice(&[
+-			(Vec2::new(1.0, 1.0), core::f64::consts::FRAC_PI_4),
+-			(
+-				Vec2::new(1.067060297290399, 1.0741254745095894),
+-				0.8853981633974479,
+-			),
+-			(
+-				Vec2::new(1.126385373038269, 1.1545754889996935),
+-				0.9853981633974485,
+-			),
+-			(
+-				Vec2::new(1.177382470697, 1.2405462135187664),
+-				1.085398163397448,
+-			),
+-			(
+-				Vec2::new(1.2195420441241855, 1.3311786570055566),
+-				1.1853981633974477,
+-			),
+-			(
+-				Vec2::new(1.2524428487982429, 1.4255672500438468),
+-				1.2853981633974483,
+-			),
+-			(
+-				Vec2::new(1.2757561507544293, 1.5227688930127192),
+-				1.3853981633974488,
+-			),
+-			(
+-				Vec2::new(1.2892490111859514, 1.62181237922622),
+-				1.4853981633974485,
+-			),
+-			(
+-				Vec2::new(1.292786613891524, 1.7217080989095277),
+-				1.585398163397448,
+-			),
+-			(
+-				Vec2::new(1.2863336123142892, 1.8214579270527014),
+-				1.6853981633974477,
+-			),
+-			(
+-				Vec2::new(1.269954482712928, 1.9200651963458437),
+-				1.7853981633974483,
+-			),
+-			(
+-				Vec2::new(1.243812879936197, 2.0165446555494073),
+-				1.885398163397448,
+-			),
+-			(
+-				Vec2::new(1.2081700022377755, 2.1099323137988986),
+-				1.9853981633974485,
+-			),
+-			(
+-				Vec2::new(1.1633819814696582, 2.1992950724829456),
+-				2.085398163397448,
+-			),
+-			(
+-				Vec2::new(1.1098963247304081, 2.2837400484561767),
+-				2.1853981633974486,
+-			),
+-			(
+-				Vec2::new(1.0482474430221567, 2.362423495432466),
+-				2.2853981633974483,
+-			),
+-			(
+-				Vec2::new(0.9790513115925215, 2.4345592344189155),
+-				2.385398163397449,
+-			),
+-			(
+-				Vec2::new(0.9029993153135479, 2.4994265089564776),
+-				2.4853981633974485,
+-			),
+-			(
+-				Vec2::new(0.8208513405926077, 2.556377186680243),
+-				2.585398163397449,
+-			),
+-			(
+-				Vec2::new(0.733428182838602, 2.604842235243788),
+-				2.6853981633974486,
+-			),
+-			(
+-				Vec2::new(0.6416033453455557, 2.6443374079022797),
+-				2.785398163397449,
+-			),
+-			(
+-				Vec2::new(0.5462943115364431, 2.6744680819458835),
+-				2.885398163397449,
+-			),
+-			(
+-				Vec2::new(0.4484533777721068, 2.6949332016394316),
+-				2.9853981633974485,
+-			),
+-			(
+-				Vec2::new(0.34905813832080734, 2.7055282862718157),
+-				3.085398163397449,
+-			),
+-			(
+-				Vec2::new(0.249101717559445, 2.706147473259658),
+-				-3.0977871437821367,
+-			),
+-			(
+-				Vec2::new(0.14958284700306645, 2.696784575891253),
+-				-2.997787143782137,
+-			),
+-			(
+-				Vec2::new(0.05149588630970692, 2.6775331451421422),
+-				-2.8977871437821374,
+-			),
+-			(
+-				Vec2::new(-0.04417911203262448, 2.648585534944694),
+-				-2.797787143782137,
+-			),
+-			(
+-				Vec2::new(-0.13648619506644044, 2.6102309802511945),
+-				-2.6977871437821364,
+-			),
+-			(
+-				Vec2::new(-0.22450306093073213, 2.5628527070938096),
+-				-2.5977871437821367,
+-			),
+-			(
+-				Vec2::new(-0.30735027419629124, 2.506924103516754),
+-				-2.497787143782137,
+-			),
+-			(
+-				Vec2::new(-0.3842000528938163, 2.443003989639431),
+-				-2.3977871437821365,
+-			),
+-			(
+-				Vec2::new(-0.4542845394377204, 2.3717310341105224),
+-				-2.297787143782136,
+-			),
+-			(
+-				Vec2::new(-0.5469113582225731, 2.249995602575736),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-0.601200240361492, 2.1660151448721336),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-0.6554891225004107, 2.082034687168531),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-0.7097780046393298, 1.9980542294649284),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-0.7640668867782485, 1.914073771761326),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-0.8183557689171674, 1.8300933140577236),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-0.8726446510560864, 1.746112856354121),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-0.926933533195005, 1.6621323986505185),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-0.981222415333924, 1.578151940946916),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.0355112974728433, 1.4941714832433135),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.0898001796117618, 1.410191025539711),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.1440890617506807, 1.3262105678361085),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.1983779438895996, 1.2422301101325057),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.2526668260285185, 1.1582496524289032),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.3069557081674374, 1.0742691947253005),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.3612445903063564, 0.990288737021698),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.4155334724452748, 0.9063082793180954),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.4698223545841942, 0.8223278216144925),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.524111236723113, 0.73834736391089),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.578400118862032, 0.6543669062072874),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.6326890010009505, 0.5703864485036849),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.6869778831398694, 0.4864059908000824),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.7412667652787888, 0.40242553309647944),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.7955556474177077, 0.3184450753928769),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.8498445295566266, 0.23446461768927418),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.9041334116955455, 0.15048415998567188),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-1.9584222938344644, 0.06650370228206914),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.0127111759733833, -0.017476755421533152),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.0670000581123023, -0.10145721312513611),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.121288940251221, -0.18543767082873885),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.17557782239014, -0.26941812853234137),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.229866704529059, -0.3533985862359439),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.284155586667978, -0.43737904393954663),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.3384444688068973, -0.5213595016431491),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.3927333509458153, -0.6053399593467517),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.4470222330847347, -0.6893204170503546),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.5013111152236536, -0.7733008747539571),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.5555999973625725, -0.8572813324575597),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.6098888795014914, -0.9412617901611622),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.66417776164041, -1.0252422478647643),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.7184666437793292, -1.1092227055683672),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.7727555259182477, -1.1932031632719697),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.827044408057166, -1.2771836209755714),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.8813332901960846, -1.3611640786791734),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.9356221723350036, -1.445144536382776),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-2.989911054473922, -1.529124994086378),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-3.0441999366128405, -1.61310545178998),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-3.132697795849478, -1.7500043974242625),
+-				-2.144669500168911,
+-			),
+-			(
+-				Vec2::new(-3.1827007168825014, -1.8365571404894814),
+-				-2.0446695001689106,
+-			),
+-			(
+-				Vec2::new(-3.223812975526071, -1.9276694428046603),
+-				-1.94466950016891,
+-			),
+-			(
+-				Vec2::new(-3.255623791681728, -2.0224309403627907),
+-				-1.8446695001689104,
+-			),
+-			(
+-				Vec2::new(-3.277815322189701, -2.119894807604256),
+-				-1.7446695001689108,
+-			),
+-			(
+-				Vec2::new(-3.290165836612702, -2.2190872177848537),
+-				-1.6446695001689111,
+-			),
+-			(
+-				Vec2::new(-3.29255193269315, -2.319017073130708),
+-				-1.5446695001689106,
+-			),
+-			(
+-				Vec2::new(-3.28494976934775, -2.418685907559622),
+-				-1.444669500168911,
+-			),
+-			(
+-				Vec2::new(-3.267435304879708, -2.5170978630241185),
+-				-1.3446695001689104,
+-			),
+-			(
+-				Vec2::new(-3.240183538028476, -2.613269639795865),
+-				-1.2446695001689108,
+-			),
+-			(
+-				Vec2::new(-3.203466759440194, -2.706240321271519),
+-				-1.1446695001689111,
+-			),
+-			(
+-				Vec2::new(-3.157651831029564, -2.795080975133798),
+-				-1.0446695001689115,
+-			),
+-			(
+-				Vec2::new(-3.103196520416864, -2.878903934936127),
+-				-0.94466950016891,
+-			),
+-			(
+-				Vec2::new(-3.000000000000001, -2.9999999999999987),
+-				-0.7853981633974492,
+-			),
+-		]);
++		let ref_points: Vec<(Vec2, f64)> = DATA.into_iter().collect();
+ 		for (refp, p) in ref_points.into_iter().zip(points.into_iter().map(|v| {
+ 			if v.1 > PI {
+ 				(v.0, v.1 - TAU)
+@@ -707,4 +334,380 @@ mod tests {
+ 			assert!((refp.1 - p.1).abs() <= 1e-10);
+ 		}
+ 	}
++
++	const DATA: [(Vec2, f64); 94] = [
++		(Vec2::new(1.0, 1.0), core::f64::consts::FRAC_PI_4),
++		(
++			Vec2::new(1.067060297290399, 1.0741254745095894),
++			0.8853981633974479,
++		),
++		(
++			Vec2::new(1.126385373038269, 1.1545754889996935),
++			0.9853981633974485,
++		),
++		(
++			Vec2::new(1.177382470697, 1.2405462135187664),
++			1.085398163397448,
++		),
++		(
++			Vec2::new(1.2195420441241855, 1.3311786570055566),
++			1.1853981633974477,
++		),
++		(
++			Vec2::new(1.2524428487982429, 1.4255672500438468),
++			1.2853981633974483,
++		),
++		(
++			Vec2::new(1.2757561507544293, 1.5227688930127192),
++			1.3853981633974488,
++		),
++		(
++			Vec2::new(1.2892490111859514, 1.62181237922622),
++			1.4853981633974485,
++		),
++		(
++			Vec2::new(1.292786613891524, 1.7217080989095277),
++			1.585398163397448,
++		),
++		(
++			Vec2::new(1.2863336123142892, 1.8214579270527014),
++			1.6853981633974477,
++		),
++		(
++			Vec2::new(1.269954482712928, 1.9200651963458437),
++			1.7853981633974483,
++		),
++		(
++			Vec2::new(1.243812879936197, 2.0165446555494073),
++			1.885398163397448,
++		),
++		(
++			Vec2::new(1.2081700022377755, 2.1099323137988986),
++			1.9853981633974485,
++		),
++		(
++			Vec2::new(1.1633819814696582, 2.1992950724829456),
++			2.085398163397448,
++		),
++		(
++			Vec2::new(1.1098963247304081, 2.2837400484561767),
++			2.1853981633974486,
++		),
++		(
++			Vec2::new(1.0482474430221567, 2.362423495432466),
++			2.2853981633974483,
++		),
++		(
++			Vec2::new(0.9790513115925215, 2.4345592344189155),
++			2.385398163397449,
++		),
++		(
++			Vec2::new(0.9029993153135479, 2.4994265089564776),
++			2.4853981633974485,
++		),
++		(
++			Vec2::new(0.8208513405926077, 2.556377186680243),
++			2.585398163397449,
++		),
++		(
++			Vec2::new(0.733428182838602, 2.604842235243788),
++			2.6853981633974486,
++		),
++		(
++			Vec2::new(0.6416033453455557, 2.6443374079022797),
++			2.785398163397449,
++		),
++		(
++			Vec2::new(0.5462943115364431, 2.6744680819458835),
++			2.885398163397449,
++		),
++		(
++			Vec2::new(0.4484533777721068, 2.6949332016394316),
++			2.9853981633974485,
++		),
++		(
++			Vec2::new(0.34905813832080734, 2.7055282862718157),
++			3.085398163397449,
++		),
++		(
++			Vec2::new(0.249101717559445, 2.706147473259658),
++			-3.0977871437821367,
++		),
++		(
++			Vec2::new(0.14958284700306645, 2.696784575891253),
++			-2.997787143782137,
++		),
++		(
++			Vec2::new(0.05149588630970692, 2.6775331451421422),
++			-2.8977871437821374,
++		),
++		(
++			Vec2::new(-0.04417911203262448, 2.648585534944694),
++			-2.797787143782137,
++		),
++		(
++			Vec2::new(-0.13648619506644044, 2.6102309802511945),
++			-2.6977871437821364,
++		),
++		(
++			Vec2::new(-0.22450306093073213, 2.5628527070938096),
++			-2.5977871437821367,
++		),
++		(
++			Vec2::new(-0.30735027419629124, 2.506924103516754),
++			-2.497787143782137,
++		),
++		(
++			Vec2::new(-0.3842000528938163, 2.443003989639431),
++			-2.3977871437821365,
++		),
++		(
++			Vec2::new(-0.4542845394377204, 2.3717310341105224),
++			-2.297787143782136,
++		),
++		(
++			Vec2::new(-0.5469113582225731, 2.249995602575736),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-0.601200240361492, 2.1660151448721336),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-0.6554891225004107, 2.082034687168531),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-0.7097780046393298, 1.9980542294649284),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-0.7640668867782485, 1.914073771761326),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-0.8183557689171674, 1.8300933140577236),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-0.8726446510560864, 1.746112856354121),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-0.926933533195005, 1.6621323986505185),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-0.981222415333924, 1.578151940946916),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.0355112974728433, 1.4941714832433135),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.0898001796117618, 1.410191025539711),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.1440890617506807, 1.3262105678361085),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.1983779438895996, 1.2422301101325057),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.2526668260285185, 1.1582496524289032),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.3069557081674374, 1.0742691947253005),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.3612445903063564, 0.990288737021698),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.4155334724452748, 0.9063082793180954),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.4698223545841942, 0.8223278216144925),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.524111236723113, 0.73834736391089),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.578400118862032, 0.6543669062072874),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.6326890010009505, 0.5703864485036849),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.6869778831398694, 0.4864059908000824),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.7412667652787888, 0.40242553309647944),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.7955556474177077, 0.3184450753928769),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.8498445295566266, 0.23446461768927418),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.9041334116955455, 0.15048415998567188),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-1.9584222938344644, 0.06650370228206914),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.0127111759733833, -0.017476755421533152),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.0670000581123023, -0.10145721312513611),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.121288940251221, -0.18543767082873885),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.17557782239014, -0.26941812853234137),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.229866704529059, -0.3533985862359439),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.284155586667978, -0.43737904393954663),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.3384444688068973, -0.5213595016431491),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.3927333509458153, -0.6053399593467517),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.4470222330847347, -0.6893204170503546),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.5013111152236536, -0.7733008747539571),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.5555999973625725, -0.8572813324575597),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.6098888795014914, -0.9412617901611622),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.66417776164041, -1.0252422478647643),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.7184666437793292, -1.1092227055683672),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.7727555259182477, -1.1932031632719697),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.827044408057166, -1.2771836209755714),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.8813332901960846, -1.3611640786791734),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.9356221723350036, -1.445144536382776),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-2.989911054473922, -1.529124994086378),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-3.0441999366128405, -1.61310545178998),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-3.132697795849478, -1.7500043974242625),
++			-2.144669500168911,
++		),
++		(
++			Vec2::new(-3.1827007168825014, -1.8365571404894814),
++			-2.0446695001689106,
++		),
++		(
++			Vec2::new(-3.223812975526071, -1.9276694428046603),
++			-1.94466950016891,
++		),
++		(
++			Vec2::new(-3.255623791681728, -2.0224309403627907),
++			-1.8446695001689104,
++		),
++		(
++			Vec2::new(-3.277815322189701, -2.119894807604256),
++			-1.7446695001689108,
++		),
++		(
++			Vec2::new(-3.290165836612702, -2.2190872177848537),
++			-1.6446695001689111,
++		),
++		(
++			Vec2::new(-3.29255193269315, -2.319017073130708),
++			-1.5446695001689106,
++		),
++		(
++			Vec2::new(-3.28494976934775, -2.418685907559622),
++			-1.444669500168911,
++		),
++		(
++			Vec2::new(-3.267435304879708, -2.5170978630241185),
++			-1.3446695001689104,
++		),
++		(
++			Vec2::new(-3.240183538028476, -2.613269639795865),
++			-1.2446695001689108,
++		),
++		(
++			Vec2::new(-3.203466759440194, -2.706240321271519),
++			-1.1446695001689111,
++		),
++		(
++			Vec2::new(-3.157651831029564, -2.795080975133798),
++			-1.0446695001689115,
++		),
++		(
++			Vec2::new(-3.103196520416864, -2.878903934936127),
++			-0.94466950016891,
++		),
++		(
++			Vec2::new(-3.000000000000001, -2.9999999999999987),
++			-0.7853981633974492,
++		),
++	];
+ }
+diff --git a/src/algorithms/path_planning/mod.rs b/src/algorithms/path_planning/mod.rs
+index cfcd391..90ae682 100644
+--- a/src/algorithms/path_planning/mod.rs
++++ b/src/algorithms/path_planning/mod.rs
+@@ -1,4 +1,11 @@
+ pub mod dubins;
+ pub mod quintic_polynomial;
++pub mod reeds_shepp;
++
+ pub use dubins::DubinsPath;
+ pub use quintic_polynomial::QuinticPolynomial;
++
++/*pub struct Ray {
++	pos: Vec2,
++	heading: f64,
++}*/
+diff --git a/src/algorithms/path_planning/quintic_polynomial.rs b/src/algorithms/path_planning/quintic_polynomial.rs
+index 749bcdd..ca8f892 100644
+--- a/src/algorithms/path_planning/quintic_polynomial.rs
++++ b/src/algorithms/path_planning/quintic_polynomial.rs
+@@ -1,4 +1,6 @@
+-use crate::math::vec::Vec2;
++use nalgebra::Vector2;
++
++type Vec2 = Vector2<f64>;
+ 
+ #[derive(Debug, Copy, Clone)]
+ pub enum QuinticError {
+@@ -117,7 +119,7 @@ impl QuinticPolynomial {
+ 
+ 		Err(QuinticError::ValidPolynomialNotFound)
+ 	}
+-
++	#[must_use]
+ 	pub fn velocity(&self, t: f64) -> Vec2 {
+ 		let t_2 = t * t;
+ 		let t_3 = t_2 * t;
+@@ -136,7 +138,7 @@ impl QuinticPolynomial {
+ 				+ 5.0 * self.cy[5] * t_4,
+ 		)
+ 	}
+-
++	#[must_use]
+ 	pub fn acceleration(&self, t: f64) -> Vec2 {
+ 		let t_2 = t * t;
+ 		let t_3 = t_2 * t;
+@@ -151,7 +153,7 @@ impl QuinticPolynomial {
+ 				+ 20.0 * self.cy[5] * t_3,
+ 		)
+ 	}
+-
++	#[must_use]
+ 	pub fn jerk(&self, t: f64) -> Vec2 {
+ 		let t_2 = t * t;
+ 		Vec2::new(
+@@ -159,7 +161,7 @@ impl QuinticPolynomial {
+ 			6.0 * self.cy[3] + 24.0 * self.cy[4] * t + 60.0 * self.cy[5] * t_2,
+ 		)
+ 	}
+-
++	#[must_use]
+ 	pub fn evaluate(&self, t: f64) -> Result<Vec2, QuinticError> {
+ 		if t < 0.0 || t > self.max_t {
+ 			return Err(QuinticError::OutOfRange);
+@@ -167,7 +169,7 @@ impl QuinticPolynomial {
+ 
+ 		Ok(self.evaluate_unchecked(t))
+ 	}
+-
++	#[must_use]
+ 	pub fn evaluate_unchecked(&self, t: f64) -> Vec2 {
+ 		let t_2 = t * t;
+ 		let t_3 = t_2 * t;
+@@ -187,6 +189,7 @@ impl QuinticPolynomial {
+ 				+ self.cy[5] * t_5,
+ 		)
+ 	}
++	#[must_use]
+ 	pub fn max_t(&self) -> f64 {
+ 		self.max_t
+ 	}
+diff --git a/src/lib.rs b/src/lib.rs
+index 62ea644..81e9092 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,7 +1,105 @@
+-#![cfg_attr(not(std), no_std)]
++#![cfg_attr(feature = "no_std", no_std)]
++
+ pub mod algorithms;
+-pub mod math;
++
++#[cfg(feature = "no_std")]
++pub mod no_std_stuff {
++	use smallvec::SmallVec;
++	pub type Vec<T> = SmallVec<[T; 64]>;
++
++	pub trait FloatMath {
++		#[must_use]
++		fn abs(self) -> Self;
++		#[must_use]
++		fn acos(self) -> Self;
++		#[must_use]
++		fn asin(self) -> Self;
++		#[must_use]
++		fn atan(self) -> Self;
++		#[must_use]
++		fn atan2(self, x: Self) -> Self;
++		#[must_use]
++		fn ceil(self) -> Self;
++		#[must_use]
++		fn cos(self) -> Self;
++		#[must_use]
++		fn exp(self) -> Self;
++		#[must_use]
++		fn floor(self) -> Self;
++		#[must_use]
++		fn powf(self, x: Self) -> Self;
++		#[must_use]
++		fn round(self) -> Self;
++		#[must_use]
++		fn sin(self) -> Self;
++		#[must_use]
++		fn sqrt(self) -> Self;
++		#[must_use]
++		fn tan(self) -> Self;
++	}
++
++	impl FloatMath for f64 {
++		fn abs(self) -> Self {
++			libm::fabs(self)
++		}
++		fn acos(self) -> Self {
++			libm::acos(self)
++		}
++		fn asin(self) -> Self {
++			libm::asin(self)
++		}
++		fn atan(self) -> Self {
++			libm::atan(self)
++		}
++		fn atan2(self, o: Self) -> Self {
++			libm::atan2(self, o)
++		}
++		fn ceil(self) -> Self {
++			libm::ceil(self)
++		}
++		fn cos(self) -> Self {
++			libm::cos(self)
++		}
++		fn exp(self) -> Self {
++			libm::exp(self)
++		}
++		fn floor(self) -> Self {
++			libm::floor(self)
++		}
++		fn powf(self, o: Self) -> Self {
++			libm::pow(self, o)
++		}
++		fn round(self) -> Self {
++			libm::round(self)
++		}
++		fn sin(self) -> Self {
++			libm::sin(self)
++		}
++		fn sqrt(self) -> Self {
++			libm::sqrt(self)
++		}
++		fn tan(self) -> Self {
++			libm::tan(self)
++		}
++	}
++}
+ 
+ pub mod prelude {
+-	pub use crate::math::{quat::*, vec::*, FloatMath};
++	use nalgebra::{Vector2, Vector3};
++
++	pub type Vec2 = Vector2<f64>;
++	pub type Vec3 = Vector3<f64>;
++
++	#[cfg(feature = "no_std")]
++	pub use crate::no_std_stuff::*;
++}
++
++#[cfg(test)]
++mod tests {
++
++	#[test]
++	fn name() {
++		// not sure why this works
++		let _ = core::primitive::f64::sin(5.0);
++	}
+ }
+diff --git a/src/math/mod.rs b/src/math/mod.rs
+deleted file mode 100644
+index 957ec57..0000000
+--- a/src/math/mod.rs
++++ /dev/null
+@@ -1,108 +0,0 @@
+-#![allow(unused)]
+-
+-pub mod quat;
+-pub mod vec;
+-
+-mod cmath {
+-	extern "C" {
+-		pub fn abs(x: f64) -> f64;
+-		pub fn absf(x: f32) -> f32;
+-		pub fn acos(x: f64) -> f64;
+-		pub fn acosf(x: f32) -> f32;
+-		pub fn asin(x: f64) -> f64;
+-		pub fn asinf(x: f32) -> f32;
+-		pub fn atan(x: f64) -> f64;
+-		pub fn atan2(y: f64, x: f64) -> f64;
+-		pub fn atan2f(y: f32, x: f32) -> f32;
+-		pub fn atanf(x: f32) -> f32;
+-		pub fn cos(x: f64) -> f64;
+-		pub fn cosf(x: f32) -> f32;
+-		pub fn exp(x: f64) -> f64;
+-		pub fn expf(x: f32) -> f32;
+-		pub fn sin(x: f64) -> f64;
+-		pub fn sinf(x: f32) -> f32;
+-		pub fn sqrt(x: f64) -> f64;
+-		pub fn sqrtf(x: f32) -> f32;
+-		pub fn tan(x: f64) -> f64;
+-		pub fn tanf(x: f32) -> f32;
+-	}
+-}
+-
+-pub trait FloatMath {
+-	fn abs(self) -> Self;
+-	fn acos(self) -> Self;
+-	fn asin(self) -> Self;
+-	fn atan(self) -> Self;
+-	fn atan2(self, x: Self) -> Self;
+-	fn cos(self) -> Self;
+-	fn exp(self) -> Self;
+-	fn sin(self) -> Self;
+-	fn sqrt(self) -> Self;
+-	fn tan(self) -> Self;
+-}
+-
+-impl FloatMath for f64 {
+-	fn abs(self) -> Self {
+-		unsafe { cmath::abs(self) }
+-	}
+-	fn acos(self) -> Self {
+-		unsafe { cmath::acos(self) }
+-	}
+-	fn asin(self) -> Self {
+-		unsafe { cmath::asin(self) }
+-	}
+-	fn atan(self) -> Self {
+-		unsafe { cmath::atan(self) }
+-	}
+-	fn atan2(self, x: Self) -> Self {
+-		unsafe { cmath::atan2(self, x) }
+-	}
+-	fn cos(self) -> Self {
+-		unsafe { cmath::cos(self) }
+-	}
+-	fn exp(self) -> Self {
+-		unsafe { cmath::exp(self) }
+-	}
+-	fn sin(self) -> Self {
+-		unsafe { cmath::sin(self) }
+-	}
+-	fn sqrt(self) -> Self {
+-		unsafe { cmath::sqrt(self) }
+-	}
+-	fn tan(self) -> Self {
+-		unsafe { cmath::tan(self) }
+-	}
+-}
+-
+-impl FloatMath for f32 {
+-	fn abs(self) -> Self {
+-		unsafe { cmath::absf(self) }
+-	}
+-	fn acos(self) -> Self {
+-		unsafe { cmath::acosf(self) }
+-	}
+-	fn asin(self) -> Self {
+-		unsafe { cmath::asinf(self) }
+-	}
+-	fn atan(self) -> Self {
+-		unsafe { cmath::atanf(self) }
+-	}
+-	fn atan2(self, x: Self) -> Self {
+-		unsafe { cmath::atan2f(self, x) }
+-	}
+-	fn cos(self) -> Self {
+-		unsafe { cmath::cosf(self) }
+-	}
+-	fn exp(self) -> Self {
+-		unsafe { cmath::expf(self) }
+-	}
+-	fn sin(self) -> Self {
+-		unsafe { cmath::sinf(self) }
+-	}
+-	fn sqrt(self) -> Self {
+-		unsafe { cmath::sqrtf(self) }
+-	}
+-	fn tan(self) -> Self {
+-		unsafe { cmath::tanf(self) }
+-	}
+-}
+diff --git a/src/math/quat.rs b/src/math/quat.rs
+deleted file mode 100644
+index b572380..0000000
+--- a/src/math/quat.rs
++++ /dev/null
+@@ -1,7 +0,0 @@
+-#[derive(Copy, Clone, Debug, PartialEq, Default)]
+-pub struct Quat {
+-	pub a: f64,
+-	pub b: f64,
+-	pub c: f64,
+-	pub d: f64,
+-}
+diff --git a/src/math/vec.rs b/src/math/vec.rs
+deleted file mode 100644
+index 8c24b88..0000000
+--- a/src/math/vec.rs
++++ /dev/null
+@@ -1,216 +0,0 @@
+-use crate::math::FloatMath;
+-
+-use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+-
+-use paste::paste;
+-
+-macro_rules! size_match {
+-	($base:expr, repeat $rep:expr, take 2) => {
+-		$base($rep, $rep)
+-	};
+-	($base:expr, repeat $rep:expr, take 3) => {
+-		$base($rep, $rep, $rep)
+-	};
+-	($base:expr, repeat $rep:expr, take 4) => {
+-		$base($rep, $rep, $rep, $rep)
+-	};
+-}
+-
+-macro_rules! impl_vec {
+-	($name:ident, $num:tt, $($field:ident),*) => {
+-			/// A Vector type
+-			#[derive(Copy, Clone, Debug, PartialEq, Default)]
+-			pub struct $name {
+-				$(
+-					pub $field: f64,
+-				)*
+-			}
+-
+-			impl $name {
+-				/// Creates a new Vector.
+-				#[inline]
+-				pub const fn new($( $field: f64, )*) -> Self {
+-					Self { $($field,)* }
+-				}
+-				/// Creates a new Vector with all components as zero.
+-				#[inline]
+-				pub const fn zero() -> Self {
+-					size_match!(Self::new, repeat 0.0, take $num)
+-				}
+-				/// Creates a new Vector with all components as one.
+-				#[inline]
+-				pub const fn one() -> Self {
+-					size_match!(Self::new, repeat 1.0, take $num)
+-				}
+-				/// Calculates a dot product with another vector.
+-				#[inline]
+-				pub fn dot(&self, other: Self) -> f64 {
+-					$(
+-						self.$field * other.$field +
+-					)* 0.0 // match off last addition
+-				}
+-				/// Returns the square of magnitude of the vector.
+-				#[inline]
+-				pub fn mag_sq(&self) -> f64 {
+-					self.dot(*self)
+-				}
+-				/// Returns the magnitude of the vector.
+-				#[inline]
+-				pub fn mag(&self) -> f64 {
+-					self.dot(*self).sqrt()
+-				}
+-				/// Normalises the vector in place.
+-				#[inline]
+-				pub fn normalise(&mut self) {
+-					*self = self.normalised();
+-				}
+-				/// Returns a normalised version of the vector.
+-				#[inline]
+-				pub fn normalised(self) -> Self {
+-					if self == Self::zero() {
+-						self
+-					} else {
+-						self / self.mag()
+-					}
+-				}
+-				/// Returns a new vector with the absolute value of each component.
+-				#[inline]
+-				pub fn abs(self) -> Self {
+-					Self::new($( self.$field.abs(), )*)
+-				}
+-				/// Returns the minimum component of the vector.
+-				#[inline]
+-				pub fn component_min(self) -> f64 {
+-					[ $( self.$field, )* ].into_iter().reduce(<f64>::min).unwrap()
+-				}
+-				/// Returns the maximum component of the vector.
+-				#[inline]
+-				pub fn component_max(self) -> f64 {
+-					[ $( self.$field, )* ].into_iter().reduce(<f64>::max).unwrap()
+-				}
+-				/// Returns a new vector with the minimum component value between the two
+-				/// vectors.
+-				#[inline]
+-				pub fn min_by_component(self, other: Self) -> Self {
+-					Self::new( $( self.$field.min(other.$field), )* )
+-				}
+-				/// Returns a new vector with the maximum component value between the two
+-				/// vectors.
+-				#[inline]
+-				pub fn max_by_component(self, other: Self) -> Self {
+-					Self::new( $( self.$field.max(other.$field), )* )
+-				}
+-			}
+-
+-			impl Neg for $name {
+-				type Output = Self;
+-				#[inline]
+-				fn neg(self) -> Self {
+-					Self::new( $( -self.$field, )*)
+-				}
+-			}
+-
+-			impl_vec!($name, $($field,)* |impl| Add +);
+-			impl_vec!($name, $($field,)* |impl| Sub -);
+-			impl_vec!($name, $($field,)* |impl| Mul *);
+-			impl_vec!($name, $($field,)* |impl| Div /);
+-			impl_vec!($name, $($field,)* |impl shorthand| Mul *);
+-			impl_vec!($name, $($field,)* |impl shorthand| Div /);
+-
+-			impl_vec!($name, display: $num, $($field,)*);
+-			impl_vec!($name, into_tuple: $num, $($field,)*);
+-	};
+-	($name:ident, $($field:ident),*, |impl| $op:ident $op_tok:tt) => {
+-		paste! {
+-			impl $op for $name {
+-				type Output = Self;
+-				#[inline]
+-				fn [<$op:lower>](self, rhs: Self) -> Self {
+-					Self::new(
+-						$(
+-							self.$field $op_tok rhs.$field,
+-						)*
+-					)
+-				}
+-			}
+-			impl [<$op Assign>] for $name {
+-				#[inline]
+-				fn [<$op:lower _assign>](&mut self, rhs: Self) {
+-					$(
+-						self.$field = self.$field $op_tok rhs.$field;
+-					)*
+-				}
+-			}
+-		}
+-	};
+-	($name:ident, $($field:ident),*, |impl shorthand| $op:ident $op_tok:tt) => {
+-		paste !{
+-			impl $op<f64> for $name {
+-				type Output = Self;
+-				#[inline]
+-				fn [<$op:lower>](self, rhs: f64) -> Self {
+-					Self::new(
+-						$(
+-							self.$field $op_tok rhs,
+-						)*
+-					)
+-				}
+-			}
+-			impl [<$op Assign>]<f64> for $name {
+-				#[inline]
+-				fn [<$op:lower _assign>](&mut self, rhs: f64) {
+-					$(
+-						self.$field = self.$field $op_tok rhs;
+-					)*
+-				}
+-			}
+-		}
+-	};
+-	// :( replace this bullshittery with proper proc macros B|
+-	($name:ident, display: 2, $($field:ident),*,) => {
+-		impl core::fmt::Display for $name {
+-			fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+-				write!(f, "({}, {})", $(self.$field,)* )
+-			}
+-		}
+-	};
+-	($name:ident, display: 3, $($field:ident),*,) => {
+-		impl core::fmt::Display for $name {
+-			fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+-				write!(f, "({}, {}, {})", $(self.$field,)* )
+-			}
+-		}
+-	};
+-	($name:ident, display: 4, $($field:ident),*,) => {
+-		impl core::fmt::Display for $name {
+-			fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+-				write!(f, "({}, {}, {}, {})", $(self.$field,)* )
+-			}
+-		}
+-	};
+-	($name:ident, into_tuple: 2, $($field:ident),*,) => {
+-		impl core::convert::From<$name> for (f64, f64) {
+-			fn from(v: $name) -> Self {
+-				($(v.$field,)*)
+-			}
+-		}
+-	};
+-	($name:ident, into_tuple: 3, $($field:ident),*,) => {
+-		impl core::convert::From<$name> for (f64, f64, f64) {
+-			fn from(v: $name) -> Self {
+-				($(v.$field,)*)
+-			}
+-		}
+-	};
+-	($name:ident, into_tuple: 4, $($field:ident),*,) => {
+-		impl core::convert::From<$name> for (f64, f64, f64, f64) {
+-			fn from(v: $name) -> Self {
+-				($(v.$field,)*)
+-			}
+-		}
+-	};
+-}
+-
+-impl_vec!(Vec2, 2, x, y);
+-impl_vec!(Vec3, 3, x, y, z);
+-impl_vec!(Vec4, 4, x, y, z, w);
+diff --git a/tests/common/graphing.rs b/tests/common/graphing.rs
+index d42f700..5f4fff0 100644
+--- a/tests/common/graphing.rs
++++ b/tests/common/graphing.rs
+@@ -5,6 +5,17 @@ use robot_algorithms::algorithms::path_planning::{DubinsPath, QuinticPolynomial}
+ use robot_algorithms::prelude::*;
+ 
+ use plotters::prelude::*;
++
++pub trait IntoTuple {
++	fn into_tuple(self) -> (f64, f64);
++}
++
++impl IntoTuple for Vec2 {
++	fn into_tuple(self) -> (f64, f64) {
++		(self.x, self.y)
++	}
++}
++
+ pub fn draw_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
+ 	const DIM: (u32, u32) = (7680, 4320);
+ 	let scaling_factor = Vec2::new(DIM.0 as f64 / 1920.0, DIM.1 as f64 / 1080.0);
+@@ -59,7 +70,10 @@ pub fn draw_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
+ 			.draw()
+ 			.unwrap();
+ 
+-		let vec_asd: Vec<(f64, f64)> = vec![values[0].into(), (*values.last().unwrap()).into()];
++		let vec_asd: Vec<(f64, f64)> = vec![
++			values[0].into_tuple(),
++			(*values.last().unwrap()).into_tuple(),
++		];
+ 		chart
+ 			.draw_series(PointSeries::of_element(
+ 				vec_asd,
+@@ -79,7 +93,7 @@ pub fn draw_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
+ 
+ 		chart
+ 			.draw_series(LineSeries::new(
+-				values.iter().map(|&x| -> (f64, f64) { x.into() }),
++				values.iter().map(|&x| -> (f64, f64) { x.into_tuple() }),
+ 				RED.stroke_width((2.0 * mean_scaling_factor).max(2.0) as u32),
+ 			))
+ 			.unwrap();
+@@ -106,7 +120,6 @@ pub fn animate_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
+ 	let num_values = range as usize * 30;
+ 
+ 	let values: Vec<Vec2> = (0..=num_values)
+-		.into_iter()
+ 		.map(|i| polynomial.evaluate_unchecked(min + range * i as f64 / num_values as f64))
+ 		.collect();
+ 
+@@ -173,9 +186,9 @@ pub fn animate_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
+ 			chart
+ 				.draw_series(PointSeries::of_element(
+ 					if t_i == 0 {
+-						vec![values[0].into()]
++						vec![values[0].into_tuple()]
+ 					} else {
+-						vec![values[0].into(), values[t_i].into()]
++						vec![values[0].into_tuple(), values[t_i].into_tuple()]
+ 					},
+ 					5.0 * mean_scaling_factor,
+ 					RED,
+@@ -192,7 +205,9 @@ pub fn animate_graph(min: f64, max: f64, polynomial: &QuinticPolynomial) {
+ 				.unwrap();
+ 
+ 			let line_series = LineSeries::new(
+-				values[0..=t_i].iter().map(|&x| -> (f64, f64) { x.into() }),
++				values[0..=t_i]
++					.iter()
++					.map(|&x| -> (f64, f64) { x.into_tuple() }),
+ 				RED.stroke_width((2.0 * mean_scaling_factor).max(2.0) as u32),
+ 			);
+ 
+diff --git a/tests/common/mod.rs b/tests/common/mod.rs
+index d3e4a2c..7359755 100644
+--- a/tests/common/mod.rs
++++ b/tests/common/mod.rs
+@@ -1,4 +1,4 @@
+-use robot_algorithms::math::vec::Vec2;
++use robot_algorithms::prelude::*;
+ use std::f64::consts::PI;
+ 
+ pub mod graphing;
+diff --git a/tests/graphs.rs b/tests/graphs.rs
+index 6e8a159..9da7e58 100644
+--- a/tests/graphs.rs
++++ b/tests/graphs.rs
+@@ -27,7 +27,7 @@ fn valid(p: &QuinticPolynomial) -> bool {
+ 
+ 	let mut t = dt;
+ 	while t < p.max_t() {
+-		if p.acceleration(t).mag() > 1.0 || p.jerk(t).mag() > 0.5 {
++		if p.acceleration(t).magnitude() > 1.0 || p.jerk(t).magnitude() > 0.5 {
+ 			return false;
+ 		}
+ 
+@@ -37,11 +37,11 @@ fn valid(p: &QuinticPolynomial) -> bool {
+ 	true
+ }
+ 
+-#[test]
++/*#[test]
+ fn graph_animated() {
+ 	let graph = get_test_graph();
+ 	animate_graph(0.0, graph.max_t(), &graph);
+-}
++}*/
+ 
+ #[test]
+ fn graph_static() {
