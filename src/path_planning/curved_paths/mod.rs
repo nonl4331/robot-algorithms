@@ -90,5 +90,3 @@ pub fn get_points(
 		.map(|v| (start.ray_from_local(v.0), v.1))
 		.collect()
 }
-
-

@@ -4,7 +4,7 @@ use super::{
 	PathSegmentType::{self, Left, Right, Straight},
 	Ray,
 };
-use crate::{path_planning::curved_paths, prelude::float_cmp};
+use crate::{path_planning::curved_paths, prelude::*};
 use core::f64::consts::TAU;
 
 fn rsr(

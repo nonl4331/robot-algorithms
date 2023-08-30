@@ -14,6 +14,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod path_planning;
+pub mod path_tracking;
 
 #[cfg(feature = "no_std")]
 pub mod no_std_stuff {
@@ -24,7 +25,7 @@ pub mod no_std_stuff {
 pub mod prelude {
 	use core::cmp::Ordering;
 
-	use nalgebra::{Point2, Point3, Rotation2, Vector2, Vector3};
+	pub use nalgebra::{Point2, Point3, Rotation2, Vector2, Vector3};
 
 	#[derive(Debug, Copy, Clone, PartialEq)]
 	pub enum Error {
@@ -80,6 +81,10 @@ pub mod prelude {
 		pub fn ray_from_local(&self, other: Self) -> Self {
 			other.rotated(self.angle).translated(self.pos.coords)
 		}
+        #[must_use]
+        pub fn at(&self, t: f64) -> Pos2 {
+            self.pos + t * Vec2::new(self.angle.cos(), self.angle.sin())
+        }
 	}
 
 	#[allow(clippy::float_cmp)]

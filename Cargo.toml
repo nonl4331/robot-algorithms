@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+log = "0.4.20"
 nalgebra = {version = "0.32.2", default-features = false, features = [ "alloc" ]}
 
 [dev-dependencies]
